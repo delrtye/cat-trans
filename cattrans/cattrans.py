@@ -1,13 +1,21 @@
 #!/usr/bin/python3
 
+import sys
 import re
 import copy
 import pprint
 import datetime
 from datetime import date
 
-file_name = '/home/derek/Downloads/TYEDRV04-20140215.csv'
-fields = {'Date':0,'Description':1,'Value':2,'Hit':3}
+file_name = sys.argv[1]
+
+# process the relevant categories to lookup
+category_results = {'Total':1,'Unknown':[]}
+category_lookup = {'Train':['XCOUNTRY'],
+                   'Petrol':['PETROL']}
+                   
+for category in category_lookup:
+    category_results[category] = []
 
 def datetostr(date_val):
     dl = list(map(int,date_val))
@@ -15,18 +23,18 @@ def datetostr(date_val):
     month = dt.strftime("%B %Y")
     return month
 
-# process the relevant categories to lookup
-category_results = {'Total':1,'Unknown':[]}
-category_lookup = {'Train':['XCOUNTRY'],
-                   'Petrol':['PETROL']}
-
-for category in category_lookup:
-    category_results[category] = []
-
-# read in the transactions file into the trans list
-# (removing the header and any blank lines)
-# TODO Check that this picks up every transaction
+def lookup_hit(transaction):
+    for category in category_lookup:
+        for lookup in category_lookup[category]:
+            if re.search(lookup,tran[fields['Description']]):
+                return [category, float(tran[fields['Value']][1:])]
+    return false
+    
+# read in the transactions file into the trans list based on pattern that
+# identifies date, description and value fields - add additional 'hit' field
+# and set it to 0 (no hit)
 trans = []
+fields = {'Date':0,'Description':1,'Value':2,'Hit':3}
 pattern = """
           ^([\d/]{10}),           # date in format 01/01/2014
           .{3},\"(.*?)\",         # description (following transaction type field)
@@ -36,7 +44,7 @@ pattern = """
 for line in open(file_name):
 	field_values = re.search(pattern,line,re.VERBOSE)
 	if field_values:
-		trans.append(field_values.groups())
+            trans.append(list(field_values.groups() + (0,)))
 
 # loop through each transaction and create dictionaries (one for each month)
 month_dict = dict()
@@ -51,29 +59,26 @@ for tran in trans:
        month_dict[month]['Total'] += 1
     else:
        month_dict[month] = copy.deepcopy(category_results)
-    
+   
+    # for each category loop through its lookup values and compare them against
+    # the description - if a match is found add the transaction value to the category
+    # in the relevant month dictionary
     for category in category_lookup:
         for lookup in category_lookup[category]:
             if re.search(lookup,tran[fields['Description']]):
                 month_dict[month][category].append(float(tran[fields['Value']][1:]))
-
-def lookup_hit(transaction):
-    for category in category_lookup:
-        for lookup in category_lookup[category]:
-            if re.search(lookup,tran[fields['Description']]):
-                return [category, float(tran[fields['Value']][1:])]
-
-    return false
+                tran[fields['Hit']] = 1
 
 # loop through the remaining transactions again and mark them as unknown
 for tran in trans:
-    # determine the month that this transaction belongs to
-    month = datetostr(tran[fields['Date']].split('/'))
-    month_dict[month]['Unknown'].append(float(tran[fields['Value']][1:]))
+    if tran[fields['Hit']] == 0:
+        # determine the month that this transaction belongs to
+        month = datetostr(tran[fields['Date']].split('/'))
+        month_dict[month]['Unknown'].append(float(tran[fields['Value']][1:]))
 
 # PRINT THE RESULTS
 
-# string representation of a datetime object (so they can be sorted chronolgically)
+# string representation of a datetime object (so they can be sorted chronologically)
 dlist = list(map(lambda a: str(datetime.datetime.strptime(a,'%B %Y')), month_dict))
 
 # loop through the sorted months
