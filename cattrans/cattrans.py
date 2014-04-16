@@ -11,16 +11,12 @@ cats_file = sys.argv[1]
 trans_file = sys.argv[2]
 
 # process the relevant categories to lookup
-category_results = {'Total':1,'Unknown':[]}
+category_results = {'Total':1,'Unknown':[],'CASH':[],'BILL':[],'CREDIT':[]}
 category_lookup = dict()
 
 for line in open(cats_file):
     field_values = re.split(',',line.rstrip())
     category_lookup[field_values[0]] = field_values[1:]
-
-#category_lookup = {'Train':['XCOUNTRY'],
-#                   'Petrol':['PETROL']}
-print(category_lookup)                  
 
 for category in category_lookup:
     category_results[category] = []
@@ -42,10 +38,11 @@ def lookup_hit(transaction):
 # identifies date, description and value fields - add additional 'hit' field
 # and set it to 0 (no hit)
 trans = []
-fields = {'Date':0,'Description':1,'Value':2,'Hit':3}
+fields = {'Date':0,'Type':1,'Description':2,'Value':3,'Hit':4}
 pattern = """
           ^([\d/]{10}),           # date in format 01/01/2014
-          .{3},\"(.*?)\",         # description (following transaction type field)
+          (.{3}),                 # type (e.g. POS D/D C/L)
+          \"(.*?)\",              # description 
           (-?\d{1,5}\.\d{2})      # value (e.g. 1234.01)
           """
 
@@ -68,16 +65,29 @@ for tran in trans:
     else:
        month_dict[month] = copy.deepcopy(category_results)
    
-    # for each category loop through its lookup values and compare them against
-    # the description - if a match is found add the transaction value to the category
-    # in the relevant month dictionary
-    for category in category_lookup:
-        for lookup in category_lookup[category]:
-            if re.search(lookup,tran[fields['Description']]):
-                month_dict[month][category].append(float(tran[fields['Value']][1:]))
-                tran[fields['Hit']] = 1
+    # check if this is a cash withdrawal or direct debit
+    if tran[fields['Type']] == 'C/L':
+        month_dict[month]['CASH'].append(float(tran[fields['Value']][1:]))
+        tran[fields['Hit']] = 1
 
-# loop through the remaining transactions again and mark them as unknown
+    elif (tran[fields['Type']] == 'D/D') or (tran[fields['Type']] == 'S/O'):
+        month_dict[month]['BILL'].append(float(tran[fields['Value']][1:]))
+        tran[fields['Hit']] = 1
+
+    elif (tran[fields['Type']] == 'DPC') or (tran[fields['Type']] == 'BAC'): 
+        month_dict[month]['CREDIT'].append(float(tran[fields['Value']])) # no minus so don't slice
+        tran[fields['Hit']] = 1
+
+    else:
+        # for each category loop through its lookup values and compare them against
+        # the description
+        for category in category_lookup:
+            for lookup in category_lookup[category]:
+                if re.search(lookup,tran[fields['Description']]):
+                    month_dict[month][category].append(float(tran[fields['Value']][1:]))
+                    tran[fields['Hit']] = 1
+
+# loop through the transactions, which didn't hit and mark them as unknown
 for tran in trans:
     if tran[fields['Hit']] == 0:
         # determine the month that this transaction belongs to
