@@ -7,13 +7,21 @@ import pprint
 import datetime
 from datetime import date
 
-file_name = sys.argv[1]
+cats_file = sys.argv[1]
+trans_file = sys.argv[2]
 
 # process the relevant categories to lookup
 category_results = {'Total':1,'Unknown':[]}
-category_lookup = {'Train':['XCOUNTRY'],
-                   'Petrol':['PETROL']}
-                   
+category_lookup = dict()
+
+for line in open(cats_file):
+    field_values = re.split(',',line.rstrip())
+    category_lookup[field_values[0]] = field_values[1:]
+
+#category_lookup = {'Train':['XCOUNTRY'],
+#                   'Petrol':['PETROL']}
+print(category_lookup)                  
+
 for category in category_lookup:
     category_results[category] = []
 
@@ -41,7 +49,7 @@ pattern = """
           (-?\d{1,5}\.\d{2})      # value (e.g. 1234.01)
           """
 
-for line in open(file_name):
+for line in open(trans_file):
 	field_values = re.search(pattern,line,re.VERBOSE)
 	if field_values:
             trans.append(list(field_values.groups() + (0,)))
