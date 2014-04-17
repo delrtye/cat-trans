@@ -74,7 +74,7 @@ for tran in trans:
         month_dict[month]['BILL'].append(float(tran[fields['Value']][1:]))
         tran[fields['Hit']] = 1
 
-    elif (tran[fields['Type']] == 'DPC') or (tran[fields['Type']] == 'BAC'): 
+    elif tran[fields['Type']] == 'BAC': 
         month_dict[month]['CREDIT'].append(float(tran[fields['Value']])) # no minus so don't slice
         tran[fields['Hit']] = 1
 
