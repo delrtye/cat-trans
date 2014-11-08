@@ -1,15 +1,35 @@
 #!/usr/bin/python3
 
-import sys
+import sys, getopt
 import re
 import copy
 import pprint
 import datetime
 from datetime import date
 
-cats_file = sys.argv[1]
-trans_file = sys.argv[2]
+def usage():
+    print("Usage: %s -c <categories_file> -t <transactions_file>" % sys.argv[0])
+    sys.exit(2)
 
+cats_file = ""
+trans_file = ""
+
+try:
+    opts, args = getopt.getopt(sys.argv[1:],"c:t:",["cfile=","tfile="])
+except getopt.GetoptError:
+    usage()
+
+if len(sys.argv[1:]) != 4:
+    usage()
+
+for opt, arg in opts:
+    if opt in ("-c", "--cfile"):
+       cats_file = arg
+    elif opt in ("-t", "--tfile"):
+       trans_file = arg
+    else:
+        usage()
+    
 # process the relevant categories to lookup
 category_results = {'Total':1,'Unknown':[],'CASH':[],'BILL':[],'CREDIT':[]}
 category_lookup = dict()
