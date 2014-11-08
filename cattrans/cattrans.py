@@ -1,40 +1,25 @@
 #!/usr/bin/python3
 
 import sys, getopt
+import argparse
 import re
 import copy
 import pprint
 import datetime
 from datetime import date
 
-def usage():
-    print("Usage: %s -c <categories_file> -t <transactions_file>" % sys.argv[0])
-    sys.exit(2)
+# parse the command-line arguements
+parser = argparse.ArgumentParser(description='Categorise Transactions.')
+parser.add_argument("-c","--cats_file", help='the categories file', required=True)
+parser.add_argument("-t","--trans_file", help='the transactions file', required=True)
+parser.add_argument("--categorise_mode", help='run in categorise mode', action="store_true")
+args = parser.parse_args()
 
-cats_file = ""
-trans_file = ""
-
-try:
-    opts, args = getopt.getopt(sys.argv[1:],"c:t:",["cfile=","tfile="])
-except getopt.GetoptError:
-    usage()
-
-if len(sys.argv[1:]) != 4:
-    usage()
-
-for opt, arg in opts:
-    if opt in ("-c", "--cfile"):
-       cats_file = arg
-    elif opt in ("-t", "--tfile"):
-       trans_file = arg
-    else:
-        usage()
-    
 # process the relevant categories to lookup
 category_results = {'Total':1,'Unknown':[],'CASH':[],'BILL':[],'CREDIT':[]}
 category_lookup = dict()
 
-for line in open(cats_file):
+for line in open(args.cats_file):
     field_values = re.split(',',line.rstrip())
     category_lookup[field_values[0]] = field_values[1:]
 
@@ -66,10 +51,10 @@ pattern = """
           (-?\d{1,5}\.\d{2})      # value (e.g. 1234.01)
           """
 
-for line in open(trans_file):
-	field_values = re.search(pattern,line,re.VERBOSE)
-	if field_values:
-            trans.append(list(field_values.groups() + (0,)))
+for line in open(args.trans_file):
+    field_values = re.search(pattern,line,re.VERBOSE)
+    if field_values:
+        trans.append(list(field_values.groups() + (0,)))
 
 # loop through each transaction and create dictionaries (one for each month)
 month_dict = dict()
@@ -107,13 +92,36 @@ for tran in trans:
                     month_dict[month][category].append(float(tran[fields['Value']][1:]))
                     tran[fields['Hit']] = 1
 
-# loop through the transactions, which didn't hit and mark them as unknown
+# loop through the transactions, which didn't hit and mark them as unknown or offer opportunity to categorise
 for tran in trans:
+
     if tran[fields['Hit']] == 0:
         # determine the month that this transaction belongs to
         month = datetostr(tran[fields['Date']].split('/'))
         month_dict[month]['Unknown'].append(float(tran[fields['Value']][1:]))
 
+        # if we are in categorise mode
+        if args.categorise_mode:
+
+            if len(category_lookup):
+                print("Available categories:")
+                print('\n'.join('{}: {}'.format(*k) for k in enumerate(category_lookup,1)))
+            else:
+                print("There are no available categories")
+
+            print(tran[fields['Description']])
+            category_input = input('Please choose an exising category (number) or enter a new one: ')
+            match_segment = input('Please enter a string segment to unique identify related transactions: ')            
+
+            if category_input in category_lookup:
+                category_lookup[category_input].add(match_segment)
+            elif category_input.isdigit() and int(category_input) in dict(enumerate(category_lookup,1)):
+                category_lookup[dict(enumerate(category_lookup,1))[int(category_input)]].add(match_segment)
+            elif category_input.isdigit():
+                print("Not a valid category - ignoring")
+            else:
+                category_lookup[category_input] = {match_segment}
+        
 # PRINT THE RESULTS
 
 # string representation of a datetime object (so they can be sorted chronologically)
